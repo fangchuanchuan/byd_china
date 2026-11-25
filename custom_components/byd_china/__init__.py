@@ -47,6 +47,25 @@ from .device_fingerprint import async_generate_device_profile
 _LOGGER = logging.getLogger(__name__)
 
 
+def _cleanup_legacy_control_devices(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    vins: list[str],
+) -> None:
+    """Remove the extra via-device created for Bemfa switch import."""
+    dev_reg = dr.async_get(hass)
+    for vin in vins:
+        if not vin:
+            continue
+        device = dev_reg.async_get_device(identifiers={(DOMAIN, f"{vin}_controls")})
+        if device is None:
+            continue
+        if device.config_entries and entry.entry_id not in device.config_entries:
+            continue
+        _LOGGER.debug("Removing leftover BYD control device for VIN %s", vin)
+        dev_reg.async_remove_device(device.id)
+
+
 def _sanitize_interval(value: int, default: int, min_value: int, max_value: int) -> int:
     try:
         parsed = int(value)
@@ -249,6 +268,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     }
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    _cleanup_legacy_control_devices(hass, entry, list(coordinators))
 
     _async_register_services(hass)
 

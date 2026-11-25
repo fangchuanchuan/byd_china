@@ -1,8 +1,7 @@
 """Switch entities for BYD remote actions.
 
-Find-car / flash / heating are attached to a via-device so Bemfa Cloud
-will list them. Switches that share the car device with climate/lock are
-hidden from Bemfa's default import list.
+Find-car, flash, battery heat and steering-wheel heat stay on the same
+vehicle device as the rest of the car.
 """
 
 from __future__ import annotations
@@ -16,13 +15,12 @@ from typing import Any
 from homeassistant.components.switch import SwitchEntity, SwitchEntityDescription
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_call_later
 from .pybyd_china.models.vehicle import Vehicle
 
 from .const import DOMAIN
-from .coordinator import BydDataUpdateCoordinator, get_vehicle_display
+from .coordinator import BydDataUpdateCoordinator
 from .entity import BydVehicleEntity
 from .pybyd_china.models.realtime import StearingWheelHeat
 from .remote import build_battery_heat_params, build_seat_climate_params
@@ -31,7 +29,6 @@ _LOGGER = logging.getLogger(__name__)
 
 _OPTIMISTIC_TTL = 30.0
 _PULSE_SECONDS = 5.0
-_CONTROLS_DEVICE_SUFFIX = "\u8fdc\u7a0b\u5f00\u5173"
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -168,18 +165,6 @@ class BydSwitch(BydVehicleEntity, SwitchEntity):
         self._optimistic_on: bool | None = None
         self._optimistic_until: float = 0.0
         self._pulse_unsub: Callable[[], None] | None = None
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Expose switches on a via-device so Bemfa Cloud will import them."""
-        display = get_vehicle_display(self._vehicle)
-        return DeviceInfo(
-            identifiers={(DOMAIN, f"{self._vin}_controls")},
-            name=f"{display} {_CONTROLS_DEVICE_SUFFIX}",
-            manufacturer=self._vehicle.brand_name or "BYD",
-            model=self._vehicle.model_name,
-            via_device=(DOMAIN, self._vin),
-        )
 
     def _is_optimistic_valid(self) -> bool:
         return _time.time() < self._optimistic_until
