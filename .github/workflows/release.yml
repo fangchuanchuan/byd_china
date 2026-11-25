@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   release:
-    name: Package and pre-release
+    name: Package and release
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -69,7 +69,7 @@ jobs:
         with:
           tag_name: ${{ steps.calc.outputs.version }}
           name: v${{ steps.calc.outputs.version }}
-          prerelease: true
+          prerelease: false
           generate_release_notes: true
           fail_on_unmatched_files: true
           files: byd_china.zip
