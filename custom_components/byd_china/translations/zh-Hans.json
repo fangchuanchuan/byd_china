@@ -62,6 +62,16 @@
     "climate": {
       "byd_climate": { "name": "空调控制" }
     },
+    "cover": {
+      "windows": { "name": "车窗" },
+      "trunk": { "name": "后备箱" }
+    },
+    "switch": {
+      "find_car": { "name": "寻车" },
+      "flash_lights": { "name": "闪灯" },
+      "battery_heat": { "name": "电池加热" },
+      "steering_wheel_heat": { "name": "方向盘加热" }
+    },
     "number": {
       "realtime_poll_interval": { "name": "遥测轮询间隔（小时，所有车辆）" },
       "gps_poll_interval": { "name": "GPS 轮询间隔（小时，所有车辆）" },

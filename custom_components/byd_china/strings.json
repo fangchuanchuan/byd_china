@@ -74,6 +74,16 @@
     "climate": {
       "byd_climate": { "name": "A/C" }
     },
+    "cover": {
+      "windows": { "name": "Windows" },
+      "trunk": { "name": "Trunk" }
+    },
+    "switch": {
+      "find_car": { "name": "Find car" },
+      "flash_lights": { "name": "Flash lights" },
+      "battery_heat": { "name": "Battery heating" },
+      "steering_wheel_heat": { "name": "Steering wheel heating" }
+    },
     "number": {
       "realtime_poll_interval": { "name": "Telemetry poll interval (all vehicles)" },
       "gps_poll_interval": { "name": "GPS poll interval (all vehicles)" },

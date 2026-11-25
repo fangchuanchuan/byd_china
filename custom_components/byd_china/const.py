@@ -10,10 +10,12 @@ PLATFORMS: list[Platform] = [
     Platform.BINARY_SENSOR,
     Platform.BUTTON,
     Platform.CLIMATE,
+    Platform.COVER,
     Platform.DEVICE_TRACKER,
     Platform.LOCK,
     Platform.NUMBER,
     Platform.SENSOR,
+    Platform.SWITCH,
 ]
 
 CONF_BASE_URL = "base_url"

@@ -18,12 +18,42 @@ _pkg = types.ModuleType("byd_china")
 _pkg.__path__ = [str(ROOT / "custom_components" / "byd_china")]
 sys.modules["byd_china"] = _pkg
 
+_pybyd = types.ModuleType("byd_china.pybyd_china")
+_pybyd.__path__ = [str(ROOT / "custom_components" / "byd_china" / "pybyd_china")]
+sys.modules["byd_china.pybyd_china"] = _pybyd
+
+sys.modules.setdefault("aiohttp", types.ModuleType("aiohttp"))
+_crypto = types.ModuleType("Crypto")
+_cipher = types.ModuleType("Crypto.Cipher")
+class _AES:
+    MODE_CBC = 2
+    MODE_ECB = 1
+    @staticmethod
+    def new(*args, **kwargs):
+        raise RuntimeError("AES unused in self_check")
+_cipher.AES = _AES
+sys.modules.setdefault("Crypto", _crypto)
+sys.modules.setdefault("Crypto.Cipher", _cipher)
+
 from byd_china.pybyd_china._constants import celsius_to_scale, scale_to_celsius
 from byd_china.pybyd_china._state_engine import VehicleSnapshot
 from byd_china.pybyd_china.client import BydClient
 from byd_china.pybyd_china.config import BydConfig, BydSession, DeviceProfile
 from byd_china.pybyd_china.exceptions import BydSessionExpiredError
+from byd_china.pybyd_china.models.realtime import (
+    DoorOpenState,
+    SeatHeatVentState,
+    StearingWheelHeat,
+    WindowState,
+)
 from byd_china.pybyd_china.models.vehicle import Vehicle
+from byd_china.remote import (
+    build_battery_heat_params,
+    build_seat_climate_params,
+    infer_hvac_mode,
+    trunk_is_closed,
+    windows_are_closed,
+)
 
 
 def check_temp_conversion() -> None:
@@ -115,10 +145,70 @@ async def _check_retry_no_double_login() -> None:
     assert len(logins) == 1, f"expected 1 re-login, got {len(logins)}"
 
 
+
+def check_remote_helpers() -> None:
+    from types import SimpleNamespace
+
+    closed = SimpleNamespace(
+        left_front_window=WindowState.CLOSED,
+        right_front_window=WindowState.CLOSED,
+        left_rear_window=WindowState.CLOSED,
+        right_rear_window=WindowState.CLOSED,
+        trunk_lid=DoorOpenState.CLOSED,
+    )
+    opened = SimpleNamespace(
+        left_front_window=WindowState.OPEN,
+        right_front_window=WindowState.CLOSED,
+        left_rear_window=WindowState.CLOSED,
+        right_rear_window=WindowState.CLOSED,
+        trunk_lid=DoorOpenState.OPEN,
+    )
+    unknown = SimpleNamespace(
+        left_front_window=None,
+        right_front_window=None,
+        left_rear_window=None,
+        right_rear_window=None,
+        trunk_lid=None,
+    )
+    assert windows_are_closed(closed) is True
+    assert windows_are_closed(opened) is False
+    assert windows_are_closed(unknown) is None
+    assert trunk_is_closed(closed) is True
+    assert trunk_is_closed(opened) is False
+    assert trunk_is_closed(unknown) is None
+
+    assert build_battery_heat_params(True) == {"batteryHeatSwitch": 1}
+    assert build_battery_heat_params(False) == {"batteryHeatSwitch": 0}
+
+    hvac = SimpleNamespace(
+        main_seat_heat_state=SeatHeatVentState.OFF,
+        main_seat_ventilation_state=None,
+        copilot_seat_heat_state=SeatHeatVentState.HIGH,
+        copilot_seat_ventilation_state=SeatHeatVentState.OFF,
+        lr_seat_heat_state=None,
+        lr_seat_ventilation_state=None,
+        rr_seat_heat_state=None,
+        rr_seat_ventilation_state=None,
+        steering_wheel_heat_state=StearingWheelHeat.OFF,
+    )
+    params = build_seat_climate_params(hvac, None, steering_on=True)
+    assert params["chairType"] == "5"
+    assert params["remoteMode"] == 1
+    assert params["mainHeat"] == SeatHeatVentState.OFF.to_command_level()
+    assert params["copilotHeat"] == SeatHeatVentState.HIGH.to_command_level()
+    assert params["steeringWheelHeatState"] == StearingWheelHeat.ON.to_command_level()
+
+    assert infer_hvac_mode(False, 20, 25) == "off"
+    assert infer_hvac_mode(True, 20, 25) == "heat"
+    assert infer_hvac_mode(True, 28, 22) == "cool"
+    assert infer_hvac_mode(True, None, 25) == "cool"
+
+
 def main() -> None:
     check_temp_conversion()
     check_config_fields()
     check_snapshot_merge_fields()
+    check_remote_helpers()
     asyncio.run(_check_retry_no_double_login())
     print("self_check: ALL PASS")
 

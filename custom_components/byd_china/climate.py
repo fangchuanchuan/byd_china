@@ -23,6 +23,7 @@ from .const import CONF_AC_TEMPERATURE, DEFAULT_AC_TEMPERATURE, DOMAIN
 from .coordinator import BydDataUpdateCoordinator
 from .entity import BydVehicleEntity
 from .pybyd_china._constants import celsius_to_scale, scale_to_celsius
+from .remote import infer_hvac_mode
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -87,7 +88,7 @@ class BydClimate(BydVehicleEntity, ClimateEntity):
     _attr_min_temp = BYD_TEMP_MIN
     _attr_max_temp = BYD_TEMP_MAX
     _attr_target_temperature_step = BYD_TEMP_STEP
-    _attr_hvac_modes = [HVACMode.OFF, HVACMode.HEAT_COOL]
+    _attr_hvac_modes = [HVACMode.OFF, HVACMode.COOL, HVACMode.HEAT, HVACMode.HEAT_COOL]
     _attr_preset_modes = [PRESET_EXTERNAL, PRESET_INTERNAL]
     _attr_fan_modes = FAN_LEVELS
     _attr_swing_modes = SWING_MODES
@@ -238,12 +239,17 @@ class BydClimate(BydVehicleEntity, ClimateEntity):
                 pass
         return None
 
+    def _inferred_on_mode(self) -> HVACMode:
+        return HVACMode(
+            infer_hvac_mode(True, self.current_temperature, self._cloud_target_temp())
+        )
+
     @property
     def hvac_mode(self) -> HVACMode:
         if self._is_optimistic_valid() and self._optimistic_mode is not None:
             return self._optimistic_mode
         if self._cloud_hvac_on():
-            return HVACMode.HEAT_COOL
+            return self._inferred_on_mode()
         return HVACMode.OFF
 
     @property
@@ -251,6 +257,10 @@ class BydClimate(BydVehicleEntity, ClimateEntity):
         mode = self.hvac_mode
         if mode == HVACMode.OFF:
             return HVACAction.OFF
+        if mode == HVACMode.HEAT:
+            return HVACAction.HEATING
+        if mode == HVACMode.COOL:
+            return HVACAction.COOLING
         return HVACAction.IDLE
 
     @property
@@ -320,8 +330,10 @@ class BydClimate(BydVehicleEntity, ClimateEntity):
                 raise
             return
 
+        if hvac_mode not in (HVACMode.COOL, HVACMode.HEAT, HVACMode.HEAT_COOL):
+            hvac_mode = HVACMode.COOL
         params = self._build_ac_params()
-        self._optimistic_mode = HVACMode.HEAT_COOL
+        self._optimistic_mode = hvac_mode
         self._optimistic_temp = params.get("_display_temp")
         self._optimistic_until = _time.time() + 30
         self.async_write_ha_state()
@@ -342,7 +354,7 @@ class BydClimate(BydVehicleEntity, ClimateEntity):
             _LOGGER.warning("忽略非法空调温度设置 %s（支持 %s-%s°C）", temperature, BYD_TEMP_MIN, BYD_TEMP_MAX)
             return
         params = self._build_ac_params(temperature=temperature)
-        self._optimistic_mode = HVACMode.HEAT_COOL
+        self._optimistic_mode = HVACMode.HEAT if self.hvac_mode == HVACMode.HEAT else HVACMode.COOL
         self._optimistic_temp = temperature
         self._optimistic_until = _time.time() + 30
         self.async_write_ha_state()
@@ -477,7 +489,7 @@ class BydClimate(BydVehicleEntity, ClimateEntity):
                 self._optimistic_mode = None
                 self._optimistic_temp = None
                 self._optimistic_until = 0
-            elif self._optimistic_mode == HVACMode.HEAT_COOL and cloud_on:
+            elif self._optimistic_mode not in (None, HVACMode.OFF) and cloud_on:
                 if self._optimistic_temp is not None and cloud_temp is not None:
                     if abs(cloud_temp - self._optimistic_temp) <= 1.0:
                         self._optimistic_mode = None
